@@ -1,0 +1,20 @@
+title: 基础鉴权 Bearer令牌缺失401携带200
+configelements: !include 'common/env/env.yaml'
+children:
+  - title: 未携带令牌应返回 401
+    testclass: http
+    config:
+      method: GET
+      path: /bearer
+    validators:
+      - { testclass: status, expected: 401, rule: equals }
+  - title: 携带令牌应返回 200
+    testclass: http
+    config:
+      method: GET
+      path: /bearer
+      headers:
+        Authorization: Bearer demo-ci-token
+    validators:
+      - { testclass: status, expected: 200, rule: equals }
+      - { testclass: json, field: '$.token', expected: demo-ci-token, rule: equals }

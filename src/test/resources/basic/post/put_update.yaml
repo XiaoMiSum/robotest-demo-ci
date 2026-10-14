@@ -1,0 +1,17 @@
+title: 基础PUT /put 请求体更新回显校验
+configelements: !include 'common/env/env.yaml'
+children:
+  - title: PUT /put JSON body 原样回显
+    testclass: http
+    config:
+      method: PUT
+      path: /put
+      headers:
+        Content-Type: application/json
+      body:
+        name: updated
+        status: archived
+    validators:
+      - { testclass: status, expected: 200, rule: equals }
+      - { testclass: json, field: '$.json.name', expected: updated, rule: equals }
+      - { testclass: json, field: '$.json.status', expected: archived, rule: equals }

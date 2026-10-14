@@ -1,0 +1,15 @@
+title: 基础GET /headers 自定义请求头回显校验
+configelements: !include 'common/env/env.yaml'
+children:
+  - title: GET /headers 回显 X-Demo 请求头
+    testclass: http
+    config:
+      method: GET
+      path: /headers
+      headers:
+        X-Demo: hello-ryze
+    validators:
+      - { testclass: status, expected: 200, rule: equals }
+      # /headers 只在 JSON body 中回显请求头，真正的响应头断言用 Content-Type
+      - { testclass: json, field: '$.headers["X-Demo"]', expected: hello-ryze, rule: equals }
+      - { testclass: http, field: 'header.Content-Type', expected: application/json, rule: contains }

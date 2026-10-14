@@ -1,0 +1,10 @@
+title: 基础状态码 GET /status/200 返回200
+configelements: !include 'common/env/env.yaml'
+children:
+  - title: GET /status/200 状态码断言
+    testclass: http
+    config:
+      method: GET
+      path: /status/200
+    validators:
+      - { testclass: status, expected: 200, rule: equals }

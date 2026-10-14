@@ -1,0 +1,13 @@
+title: 基础鉴权 Basic Auth携带凭据访问成功
+configelements: !include 'common/env/env.yaml'
+children:
+  - title: GET /basic-auth 携带 Basic 凭据返回 200
+    testclass: http
+    config:
+      method: GET
+      path: /basic-auth/quicksand/supersecret
+      headers:
+        Authorization: Basic cXVpY2tzYW5kOnN1cGVyc2VjcmV0
+    validators:
+      - { testclass: status, expected: 200, rule: equals }
+      - { testclass: json, field: '$.user', expected: quicksand, rule: equals }

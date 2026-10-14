@@ -1,0 +1,13 @@
+title: 基础GET /uuid 提取UUID并校验格式
+configelements: !include 'common/env/env.yaml'
+children:
+  - title: GET /uuid 返回合法UUID
+    testclass: http
+    config:
+      method: GET
+      path: /uuid
+    validators:
+      - { testclass: status, expected: 200, rule: equals }
+      - { testclass: json, field: '$.uuid', expected: '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$', rule: regex }
+    extractors:
+      - { testclass: json, field: '$.uuid', ref_name: uuid_v4 }

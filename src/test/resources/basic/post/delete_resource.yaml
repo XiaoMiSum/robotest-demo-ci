@@ -1,0 +1,13 @@
+title: 基础DELETE /delete 查询参数回显校验
+configelements: !include 'common/env/env.yaml'
+children:
+  - title: DELETE /delete 携带 query 参数原样回显
+    testclass: http
+    config:
+      method: DELETE
+      path: /delete
+      query:
+        target: stale
+    validators:
+      - { testclass: status, expected: 200, rule: equals }
+      - { testclass: json, field: '$.args.target', expected: stale, rule: equals }

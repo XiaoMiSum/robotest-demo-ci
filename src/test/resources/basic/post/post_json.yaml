@@ -1,0 +1,17 @@
+title: 基础POST /post JSON请求体回显校验
+configelements: !include 'common/env/env.yaml'
+children:
+  - title: POST /post JSON body 原样回显
+    testclass: http
+    config:
+      method: POST
+      path: /post
+      headers:
+        Content-Type: application/json
+      body:
+        action: create
+        target: testcase
+    validators:
+      - { testclass: status, expected: 200, rule: equals }
+      - { testclass: json, field: '$.json.action', expected: create, rule: equals }
+      - { testclass: json, field: '$.json.target', expected: testcase, rule: equals }

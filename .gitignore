@@ -1,0 +1,10 @@
+target/
+logs/
+allure-results/
+__Ryze_Native_Result__/
+robotest-manifest.json
+robotest-expected.txt
+.idea/
+*.iml
+.vscode/
+.DS_Store

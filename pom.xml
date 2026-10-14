@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xmlns="http://maven.apache.org/POM/4.0.0"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>com.robotest.demo</groupId>
+    <artifactId>robotest-demo-ci</artifactId>
+    <version>1.0.0</version>
+    <description>robotest 平台 GitLab CI 集成验证工程（目标接口 httpbin.org）</description>
+
+    <properties>
+        <!-- ryze-testng >= 6.1.2：原生结果导出为 testClass#testMethod 信封（平台 CI 契约） -->
+        <ryze.version>6.1.2</ryze.version>
+        <testng.version>7.11.0</testng.version>
+        <logback.version>1.5.32</logback.version>
+        <!-- 3.x 才支持 -Dtest="类#方法,..." 过滤（GitLab 模板按冻结清单过滤执行） -->
+        <maven.surefire.version>3.5.2</maven.surefire.version>
+        <maven.compiler.source>21</maven.compiler.source>
+        <maven.compiler.target>21</maven.compiler.target>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    </properties>
+
+    <dependencies>
+        <dependency>
+            <groupId>io.github.xiaomisum</groupId>
+            <artifactId>ryze</artifactId>
+            <version>${ryze.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>io.github.xiaomisum</groupId>
+            <artifactId>ryze-testng</artifactId>
+            <version>${ryze.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.testng</groupId>
+            <artifactId>testng</artifactId>
+            <version>${testng.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>ch.qos.logback</groupId>
+            <artifactId>logback-classic</artifactId>
+            <version>${logback.version}</version>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>${maven.surefire.version}</version>
+            </plugin>
+        </plugins>
+    </build>
+</project>

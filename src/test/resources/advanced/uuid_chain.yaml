@@ -1,0 +1,22 @@
+title: 进阶场景 提取UUID串联第二步query校验
+configelements: !include 'common/env/env.yaml'
+children:
+  - title: 第一步 GET /uuid 提取 UUID
+    testclass: http
+    config:
+      method: GET
+      path: /uuid
+    validators:
+      - { testclass: status, expected: 200, rule: equals }
+    extractors:
+      - { testclass: json, field: '$.uuid', ref_name: chain_uuid }
+  - title: 第二步 GET /anything 以 UUID 作为 trace 串联校验
+    testclass: http
+    config:
+      method: GET
+      path: /anything
+      query:
+        trace: ${chain_uuid}
+    validators:
+      - { testclass: status, expected: 200, rule: equals }
+      - { testclass: json, field: '$.args.trace', expected: '${chain_uuid}', rule: equals }
