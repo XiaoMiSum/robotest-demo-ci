@@ -12,6 +12,10 @@
 # 触发口径：平台触发流水线时注入 ROBOTEST_BATCH_ID（批次票据）；无该变量的流水线
 # 不执行本 job（手动 / 定时触发不受影响）。一次任务恒定 1 条流水线，不拆批。
 #
+# 过滤方式：清单方法过滤经 testng.xml suite 下发（surefire suiteXmlFiles），
+# 不用 -Dtest 逗号拼接——数百至数千条 sourceRef 拼成单个命令行参数会突破
+# Linux 128KiB 单参数上限（E2BIG）与 Windows 32K 命令行上限。
+#
 # artifact 约束：GitLab 默认上限 5MB；接入方实例若放宽，须在 P0 约定中记录取值。
 
 stages:
@@ -42,11 +46,42 @@ robotest-batch:
         || { echo "[robotest] 冻结清单为空，拒绝执行空批次"; exit 1; }
       jq -r '.data.expectedCases' robotest-manifest.json > robotest-expected.txt
     - |
-      # 按清单执行：sourceRef（类全限定名#方法名）逐条生成 TestNG 方法过滤条件，
-      # 未在清单中的方法不执行；清单内方法全部缺失时显式失败（不静默通过）
-      TEST_FILTER=$(jq -r '[.data.scenes[].sourceRef] | join(",")' robotest-manifest.json)
-      echo "[robotest] 批次 ${ROBOTEST_BATCH_ID}，期望用例 $(cat robotest-expected.txt)，方法数 $(echo "${TEST_FILTER}" | tr ',' '\n' | wc -l | tr -d ' ')"
-      mvn test -Dtest="${TEST_FILTER}" -DfailIfNoTests=true
+      # 生成 testng.xml：sourceRef（类全限定名#方法名）按类分组、组内按方法名排序
+      # （输出确定性，便于对账排障）；未在清单中的方法不执行。Java 标识符不含
+      # XML 特殊字符，无需转义；清单内方法全部缺失时由 failIfNoTests 显式失败。
+      CLASSES=$(jq -r '
+        [.data.scenes[].sourceRef | split("#")]
+        | group_by(.[0])
+        | .[]
+        | (.[0][0]) as $cls
+        | (map(select(length > 1 and .[1] != "") | .[1]) | unique) as $methods
+        | if ($methods | length) == 0 then
+            "      <class name=\"\($cls)\"/>"
+          else
+            (["      <class name=\"\($cls)\">", "        <methods>"]
+             + ($methods | map("          <include name=\"\(.)\"/>"))
+             + ["        </methods>", "      </class>"]) | join("\n")
+          end
+      ' robotest-manifest.json)
+      [ -n "${CLASSES}" ] || { echo "[robotest] 清单无可用 sourceRef，拒绝执行空批次"; exit 1; }
+      {
+        printf '%s\n' \
+          '<?xml version="1.0" encoding="UTF-8"?>' \
+          '<!DOCTYPE suite SYSTEM "https://testng.org/testng-1.0.dtd">' \
+          '<suite name="robotest-batch">' \
+          '  <test name="robotest-batch">' \
+          '    <classes>'
+        printf '%s\n' "${CLASSES}"
+        printf '%s\n' \
+          '    </classes>' \
+          '  </test>' \
+          '</suite>'
+      } > robotest-testng.xml
+      echo "[robotest] 批次 ${ROBOTEST_BATCH_ID}，期望用例 $(cat robotest-expected.txt)，类数 $(jq '[.data.scenes[].sourceRef | split("#")[0]] | unique | length' robotest-manifest.json)，方法数 $(jq '.data.scenes | length' robotest-manifest.json)"
+    - |
+      # 按清单执行：surefire 以 suiteXmlFiles 加载 testng.xml 过滤执行；
+      # 注意传 suiteXmlFiles 时不得再传 -Dtest（-Dtest 会使其被忽略）
+      mvn test -Dsurefire.suiteXmlFiles=robotest-testng.xml -DfailIfNoTests=true
   after_script:
     - |
       # 回报完成：实际用例数 = 信封文件数（文件名含 #）；执行失败也须回报，
