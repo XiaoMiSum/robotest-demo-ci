@@ -1,7 +1,8 @@
 # Robotest GitLab 执行批次 CI 模板（平台契约最小实现）
 #
 # 契约依据：docs/04-detailed-design/05-api-testing/32-gitlab-integration-overview.md 4.2 / 4.6
-# 四步职责（不得增删）：取冻结清单 → 按清单方法过滤执行 → 上传 __Ryze_Native_Result__ 为 artifact → 回报完成
+# 四步职责（不得增删）：取冻结清单 → 按清单方法过滤执行 → 推送结果制品 → 回报完成
+# （GitLab artifact 由 runner 在作业结束时自动上传，仅供人工排查，平台不读取）
 #
 # 接入前置：
 #   1. 仓库 ryze-testng >= 6.1.2（原生结果导出为 testClass#testMethod 信封）
@@ -86,11 +87,26 @@ robotest-batch:
       mvn test -Dsurefire.suiteXmlFiles=robotest-testng.xml -DfailIfNoTests=true
   after_script:
     - |
+      # 推送结果制品（先于回报，详设 4.6）：打包用 jar（JDK 自带，零额外依赖）；
+      # 重试 3 次仍失败按 BR-1.27 置 PUSH_OK=0——尽力回报后令作业显式失败，禁止静默通过
+      PUSH_OK=1
+      if ! jar --create --file robotest-result.zip "${RYZE_RESULT_DIR}" 2>/dev/null; then
+        echo "[robotest] 结果目录缺失，无法打包：${RYZE_RESULT_DIR}"
+        PUSH_OK=0
+      else
+        RESP=$(curl -sS --fail --retry 3 --retry-delay 5 \
+          -H "ROBOTEST-CI-TOKEN: ${ROBOTEST_CI_TOKEN}" \
+          -F "file=@robotest-result.zip" \
+          "${ROBOTEST_PLATFORM_URL}/api/ci/batches/${ROBOTEST_BATCH_ID}/artifacts") \
+          && echo "${RESP}" | grep -q '"code":200' \
+          || { echo "[robotest] 制品推送失败：${RESP:-网络不可达}"; PUSH_OK=0; }
+      fi
       # 回报完成：实际用例数 = 信封文件数（文件名含 #）；执行失败也须回报，
       # 平台侧按批次终态去重，重复回报被忽略；本步失败仅告警，平台以流水线轮询兜底
       ACTUAL=$(ls -1 "${RYZE_RESULT_DIR}" 2>/dev/null | grep -c '#' || true)
       STATUS=success
       [ "${CI_JOB_STATUS}" = "success" ] || STATUS=failed
+      [ "${PUSH_OK}" = "1" ] || STATUS=failed
       curl -sS --retry 3 --retry-delay 10 \
         -H "ROBOTEST-CI-TOKEN: ${ROBOTEST_CI_TOKEN}" \
         -H "Content-Type: application/json" \
@@ -98,8 +114,10 @@ robotest-batch:
         "${ROBOTEST_PLATFORM_URL}/api/ci/batches/${ROBOTEST_BATCH_ID}/completion" \
         -d "{\"status\":\"${STATUS}\",\"expectedCases\":$(cat robotest-expected.txt 2>/dev/null || echo 0),\"actualCases\":${ACTUAL:-0},\"pipelineUrl\":\"${CI_PIPELINE_URL}\"}" \
         || echo "[robotest] 回报失败：平台不可达，平台将以流水线轮询兜底"
+      # 推送失败：回报已尽力发出，此处令作业失败使流水线终态可见（BR-1.27）
+      [ "${PUSH_OK}" = "1" ] || exit 1
   artifacts:
-    # 须在流水线终态前完成上传（4.6 硬约束）；job 失败时同样上传，供平台回收与排障
+    # 仅供人工排查（平台不读取 GitLab artifact）；失败时同样上传，供排障
     when: always
     paths:
       - ./__Ryze_Native_Result__
