@@ -7,7 +7,8 @@
 #   1. 仓库 ryze-testng >= 6.1.2（原生结果导出为 testClass#testMethod 信封）
 #   2. GitLab CI/CD 变量中配置 ROBOTEST_PLATFORM_URL（平台地址，结尾不留 /）
 #      与 ROBOTEST_CI_TOKEN（平台签发的只读令牌，设为 Masked）
-#   3. 执行器镜像内预装 jq（解析冻结清单）
+#   3. 执行器镜像内预装 jq（解析冻结清单）——本仓库 Dockerfile 提供
+#      xiaoyacheng/robotest-ci:v1（maven3.9.9 + jdk21 + jq），免 job 内装包
 #
 # 触发口径：平台触发流水线时注入 ROBOTEST_BATCH_ID（批次票据）；无该变量的流水线
 # 不执行本 job（手动 / 定时触发不受影响）。一次任务恒定 1 条流水线，不拆批。
@@ -27,13 +28,13 @@ variables:
 robotest-batch:
   stage: test
   # 镜像与执行器 tag 按接入方实际情况调整，jq 须可用
-  image: maven:3.9.9-eclipse-temurin-21
+  image: xiaoyacheng/robotest-ci:v1
   tags:
     - qa
   rules:
     - if: '$ROBOTEST_BATCH_ID'
   script:
-    - apt-get update -qq && apt-get install -y -qq jq
+    # jq 已内置于镜像；此处断言兜底——换用未预装 jq 的镜像时给出明确错误而非中途失败
     - command -v jq >/dev/null 2>&1 || { echo "[robotest] 镜像缺少 jq，无法解析冻结清单"; exit 1; }
     - |
       # 取冻结清单：只读令牌回调平台，失败重试；仍失败则流水线显式失败而非静默通过
