@@ -33,6 +33,7 @@ robotest-batch:
   rules:
     - if: '$ROBOTEST_BATCH_ID'
   script:
+    - apt-get update -qq && apt-get install -y -qq jq
     - command -v jq >/dev/null 2>&1 || { echo "[robotest] 镜像缺少 jq，无法解析冻结清单"; exit 1; }
     - |
       # 取冻结清单：只读令牌回调平台，失败重试；仍失败则流水线显式失败而非静默通过
