@@ -11,7 +11,7 @@
 
     <properties>
         <!-- ryze-testng >= 6.1.2：原生结果导出为 testClass#testMethod 信封（平台 CI 契约） -->
-        <ryze.version>6.1.3</ryze.version>
+        <ryze.version>6.1.2</ryze.version>
         <testng.version>7.11.0</testng.version>
         <logback.version>1.5.32</logback.version>
         <!-- 3.x 才支持 -Dtest="类#方法,..." 过滤（GitLab 模板按冻结清单过滤执行） -->
