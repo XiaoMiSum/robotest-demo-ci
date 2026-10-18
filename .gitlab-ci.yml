@@ -82,13 +82,15 @@ robotest-batch:
       } > robotest-testng.xml
       echo "[robotest] 批次 ${ROBOTEST_BATCH_ID}，期望用例 $(cat robotest-expected.txt)，类数 $(jq '[.data.scenes[].sourceRef | split("#")[0]] | unique | length' robotest-manifest.json)，方法数 $(jq '.data.scenes | length' robotest-manifest.json)"
     - |
-      # 按清单执行：surefire 以 suiteXmlFiles 加载 testng.xml 过滤执行；
-      # 注意传 suiteXmlFiles 时不得再传 -Dtest（-Dtest 会使其被忽略）
-      mvn test -Dsurefire.suiteXmlFiles=robotest-testng.xml -DfailIfNoTests=true
-  after_script:
-    - |
+      # 按清单执行 → 推送结果制品 → 回报完成（三段必须同在 script：作业状态由 script
+      # 阶段决定，after_script 的失败不影响作业状态——runner 提示 "job will continue
+      # unaffected"——BR-1.27 要求推送失败必须令作业失败，故在此以退出码显式收口）。
+      # mvn 失败不中断后续推送与回报：部分结果同样回传，最终统一以退出码收口。
+      TEST_OK=1
+      mvn test -Dsurefire.suiteXmlFiles=robotest-testng.xml -DfailIfNoTests=true || TEST_OK=0
+
       # 推送结果制品（先于回报，详设 4.6）：打包用 jar（JDK 自带，零额外依赖）；
-      # 重试 3 次仍失败按 BR-1.27 置 PUSH_OK=0——尽力回报后令作业显式失败，禁止静默通过
+      # 重试 3 次仍失败按 BR-1.27 置 PUSH_OK=0——回报后令作业显式失败，禁止静默通过
       PUSH_OK=1
       if ! jar --create --file robotest-result.zip "${RYZE_RESULT_DIR}" 2>/dev/null; then
         echo "[robotest] 结果目录缺失，无法打包：${RYZE_RESULT_DIR}"
@@ -101,11 +103,13 @@ robotest-batch:
           && echo "${RESP}" | grep -q '"code":200' \
           || { echo "[robotest] 制品推送失败：${RESP:-网络不可达}"; PUSH_OK=0; }
       fi
+
       # 回报完成：实际用例数 = 信封文件数（文件名含 #）；执行失败也须回报，
-      # 平台侧按批次终态去重，重复回报被忽略；本步失败仅告警，平台以流水线轮询兜底
+      # 平台侧按批次终态去重；回报网络失败仅告警——制品已在平台暂存，
+      # 轮询通道可兑底回收，不因回报通道问题误判作业失败
       ACTUAL=$(ls -1 "${RYZE_RESULT_DIR}" 2>/dev/null | grep -c '#' || true)
       STATUS=success
-      [ "${CI_JOB_STATUS}" = "success" ] || STATUS=failed
+      [ "${TEST_OK}" = "1" ] || STATUS=failed
       [ "${PUSH_OK}" = "1" ] || STATUS=failed
       curl -sS --retry 3 --retry-delay 10 \
         -H "ROBOTEST-CI-TOKEN: ${ROBOTEST_CI_TOKEN}" \
@@ -113,8 +117,10 @@ robotest-batch:
         -X POST \
         "${ROBOTEST_PLATFORM_URL}/api/ci/batches/${ROBOTEST_BATCH_ID}/completion" \
         -d "{\"status\":\"${STATUS}\",\"expectedCases\":$(cat robotest-expected.txt 2>/dev/null || echo 0),\"actualCases\":${ACTUAL:-0},\"pipelineUrl\":\"${CI_PIPELINE_URL}\"}" \
-        || echo "[robotest] 回报失败：平台不可达，平台将以流水线轮询兜底"
-      # 推送失败：回报已尽力发出，此处令作业失败使流水线终态可见（BR-1.27）
+        || echo "[robotest] 回报失败：制品已推送，平台将以流水线轮询兜底"
+
+      # 作业状态收口：script 阶段的退出码决定作业状态（BR-1.27 推送失败禁止静默通过）
+      [ "${TEST_OK}" = "1" ] || exit 1
       [ "${PUSH_OK}" = "1" ] || exit 1
   artifacts:
     # 仅供人工排查（平台不读取 GitLab artifact）；失败时同样上传，供排障
